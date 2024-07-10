@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>View 3D</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+</head>
+<body>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "./js/three.module.js",
+                "OBJLoader": "./js/examples/jsm/loaders/OBJLoader.js",
+                "OrbitControls": "./js/examples/jsm/controls/OrbitControls.js"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from './js/three.module.js';
+        import { OBJLoader } from './js/examples/jsm/loaders/OBJLoader.js';
+        import { OrbitControls } from './js/examples/jsm/controls/OrbitControls.js';
+
+        let camera, scene, renderer, controls;
+        let object;
+
+        init();
+
+        function init() {
+            camera = new THREE.PerspectiveCamera( 45, window.innerWidth / window.innerHeight, 0.1, 100 );
+            camera.position.z = 2.5;
+
+            // scene
+            scene = new THREE.Scene();
+
+            const ambientLight = new THREE.AmbientLight( 0xffffff );
+            scene.add( ambientLight );
+
+            const pointLight = new THREE.PointLight( 0xffffff, 15 );
+            camera.add( pointLight );
+            scene.add( camera );
+
+            // manager
+            function loadModel() {
+                object.traverse( function ( child ) {
+                    if ( child.isMesh ) child.material.map = texture;
+                } );
+
+                object.position.y = 1.5;
+                object.scale.setScalar(1);
+                scene.add( object );
+
+                render();
+            }
+
+            const manager = new THREE.LoadingManager( loadModel );
+
+            // texture
+            const textureLoader = new THREE.TextureLoader( manager );
+            const texture = textureLoader.load( './materials/model1.jpg', render );
+            texture.colorSpace = THREE.SRGBColorSpace;
+
+            // model
+            function onProgress( xhr ) {
+                if ( xhr.lengthComputable ) {
+                    const percentComplete = xhr.loaded / xhr.total * 100;
+                    console.log( 'model ' + percentComplete.toFixed( 2 ) + '% downloaded' );
+                }
+            }
+
+            function onError() {}
+
+            const loader = new OBJLoader( manager );
+            loader.load( './obj/model1.obj', function ( obj ) {
+                object = obj;
+            }, onProgress, onError );
+
+            // renderer
+            renderer = new THREE.WebGLRenderer( { antialias: true } );
+            renderer.setPixelRatio( window.devicePixelRatio );
+            renderer.setSize( window.innerWidth, window.innerHeight );
+            document.body.appendChild( renderer.domElement );
+
+            // controls
+            controls = new OrbitControls( camera, renderer.domElement );
+            controls.update();
+
+            window.addEventListener( 'resize', onWindowResize );
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize( window.innerWidth, window.innerHeight );
+        }
+
+        function render() {
+            requestAnimationFrame(render);
+            controls.update();
+            renderer.render( scene, camera );
+        }
+
+        render();
+
+    </script>
+
+</body>
+</html>
