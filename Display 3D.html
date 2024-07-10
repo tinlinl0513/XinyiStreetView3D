@@ -34,16 +34,25 @@
 
             scene = new THREE.Scene();
 
-            const ambientLight = new THREE.AmbientLight(0xffffff);
+            // Adjust Ambient Light
+            const ambientLight = new THREE.AmbientLight(0x404040, 2); // Soft white light
             scene.add(ambientLight);
 
-            const pointLight = new THREE.PointLight(0xffffff, 15);
+            // Adjust Point Light
+            const pointLight = new THREE.PointLight(0xffffff, 3);
+            pointLight.position.set(1, 1, 2);
             camera.add(pointLight);
             scene.add(camera);
+
+            // Add Directional Light
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 2);
+            directionalLight.position.set(-1, 2, 4).normalize();
+            scene.add(directionalLight);
 
             const manager = new THREE.LoadingManager(loadModel);
             const textureLoader = new THREE.TextureLoader(manager);
             const texture = textureLoader.load('https://tinlinl0513.github.io/XinyiStreetView3D/materials/model1.jpg');
+            texture.colorSpace = THREE.SRGBColorSpace;
 
             function loadModel() {
                 object.traverse(function(child) {
