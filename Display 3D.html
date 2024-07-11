@@ -4,15 +4,28 @@
     <title>three.js webgl - loaders - OBJ loader</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+    <style>
+        #controlToggle {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 1;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.7);
+            border: 1px solid #ccc;
+            cursor: pointer;
+        }
+    </style>
 </head>
 <body>
+    <div id="controlToggle">start</div>
     <script type="importmap">
         {
             "imports": {
                 "three": "https://tinlinl0513.github.io/XinyiStreetView3D/js%20for%20github/three.module.js",
                 "OBJLoader": "https://tinlinl0513.github.io/XinyiStreetView3D/js%20for%20github/loader/OBJLoader.js",
-                "OrbitControls": "https://tinlinl0513.github.io/XinyiStreetView3D/js%20for%20github/controls/OrbitControls.js"
-                "Pointerlock": ""
+                "OrbitControls": "https://tinlinl0513.github.io/XinyiStreetView3D/js%20for%20github/controls/OrbitControls.js",
+                "PointerLockControls": "https://tinlinl0513.github.io/XinyiStreetView3D/js%20for%20github/controls/PointerLockControls.js"
             }
         }
     </script>
@@ -21,15 +34,25 @@
         import * as THREE from 'https://tinlinl0513.github.io/XinyiStreetView3D/js%20for%20github/three.module.js';
         import { OBJLoader } from 'https://tinlinl0513.github.io/XinyiStreetView3D/js%20for%20github/loader/OBJLoader.js';
         import { OrbitControls } from 'https://tinlinl0513.github.io/XinyiStreetView3D/js%20for%20github/controls/OrbitControls.js';
-        import { Pointerlock } from ''
+        import { PointerLockControls } from 'https://tinlinl0513.github.io/XinyiStreetView3D/js%20for%20github/controls/PointerLockControls.js';
 
         let camera, scene, renderer;
+        let controls, orbitControls, pointerLockControls;
         let object;
+        let moveForward = false;
+        let moveBackward = false;
+        let moveLeft = false;
+        let moveRight = false;
+        let prevTime = performance.now();
+        const velocity = new THREE.Vector3();
+        const direction = new THREE.Vector3();
 
         init();
+        animate();
 
         function init() {
             camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.y = 1.5;
             camera.position.z = 3;
 
             scene = new THREE.Scene();
@@ -74,10 +97,106 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
             document.body.appendChild(renderer.domElement);
 
-            const controls = new OrbitControls(camera, renderer.domElement);
-            controls.update();
+            // First Person Controls with Pointer Lock
+            pointerLockControls = new PointerLockControls(camera, document.body);
+
+            const blocker = document.createElement('div');
+            blocker.style.position = 'absolute';
+            blocker.style.width = '100%';
+            blocker.style.height = '100%';
+            blocker.style.backgroundColor = 'rgba(0,0,0,0.5)';
+            blocker.style.display = 'none';
+            document.body.appendChild(blocker);
+
+            const instructions = document.createElement('div');
+            instructions.style.width = '100%';
+            instructions.style.height = '100%';
+            instructions.style.display = 'flex';
+            instructions.style.alignItems = 'center';
+            instructions.style.justifyContent = 'center';
+            instructions.innerHTML = '<span style="font-size:24px;color:white;">Click to start</span>';
+            blocker.appendChild(instructions);
+
+            instructions.addEventListener('click', function () {
+                pointerLockControls.lock();
+            });
+
+            pointerLockControls.addEventListener('lock', function () {
+                instructions.style.display = 'none';
+                blocker.style.display = 'none';
+            });
+
+            pointerLockControls.addEventListener('unlock', function () {
+                blocker.style.display = 'block';
+                instructions.style.display = '';
+            });
+
+            orbitControls = new OrbitControls(camera, renderer.domElement);
+            orbitControls.enabled = false;
+
+            controls = pointerLockControls;
+            scene.add(controls.getObject());
+
+            const onKeyDown = function (event) {
+                switch (event.code) {
+                    case 'ArrowUp':
+                    case 'KeyW':
+                        moveForward = true;
+                        break;
+                    case 'ArrowLeft':
+                    case 'KeyA':
+                        moveLeft = true;
+                        break;
+                    case 'ArrowDown':
+                    case 'KeyS':
+                        moveBackward = true;
+                        break;
+                    case 'ArrowRight':
+                    case 'KeyD':
+                        moveRight = true;
+                        break;
+                }
+            };
+
+            const onKeyUp = function (event) {
+                switch (event.code) {
+                    case 'ArrowUp':
+                    case 'KeyW':
+                        moveForward = false;
+                        break;
+                    case 'ArrowLeft':
+                    case 'KeyA':
+                        moveLeft = false;
+                        break;
+                    case 'ArrowDown':
+                    case 'KeyS':
+                        moveBackward = false;
+                        break;
+                    case 'ArrowRight':
+                    case 'KeyD':
+                        moveRight = false;
+                        break;
+                }
+            };
+
+            document.addEventListener('keydown', onKeyDown);
+            document.addEventListener('keyup', onKeyUp);
 
             window.addEventListener('resize', onWindowResize);
+
+            document.getElementById('controlToggle').addEventListener('click', function () {
+                if (controls === pointerLockControls) {
+                    controls = orbitControls;
+                    orbitControls.enabled = true;
+                    pointerLockControls.unlock();
+                    this.innerHTML = '切換至行人模式';
+                } else {
+                    controls = pointerLockControls;
+                    orbitControls.enabled = false;
+                    pointerLockControls.lock();
+                    this.innerHTML = '切換至環繞模式';
+                }
+            });
         }
 
         function onWindowResize() {
@@ -86,9 +205,32 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
         }
 
-        function render() {
-            requestAnimationFrame(render);
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const time = performance.now();
+            const delta = (time - prevTime) / 1000;
+
+            velocity.x = velocity.x * 5 * delta;
+            velocity.z = velocity.z * 5 * delta;
+
+            direction.z = Number(moveForward) - Number(moveBackward);
+            direction.x = Number(moveLeft) - Number(moveRight);
+            direction.normalize(); // this ensures consistent movements in all directions
+
+            if (moveForward || moveBackward) velocity.z += -direction.z * 200 * delta;
+            if (moveLeft || moveRight) velocity.x += -direction.x * 200 * delta;
+
+            if (controls === pointerLockControls) {
+                camera.position.y = 1.5;
+                controls.moveRight(velocity.x * delta);
+                controls.moveForward(-velocity.z * delta);
+            } else {
+                orbitControls.update();
+            }
+
             renderer.render(scene, camera);
+            prevTime = time;
         }
 
         render();
