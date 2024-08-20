@@ -208,6 +208,9 @@
                     case 'KeyD':
                         moveRight = true;
                         break;
+                    case 'Space':
+                        toggleControls();
+                        break;
                 }
             };
 
@@ -329,6 +332,22 @@
             renderer.render(scene, camera);
         }
 
+        function toggleControls() {
+            if (controls === pointerLockControls) {
+                controls = orbitControls;
+                orbitControls.enabled = true;
+                pointerLockControls.unlock();
+                document.getElementById('controlToggle').innerHTML = '<img src="https://tinlinl0513.github.io/XinyiStreetView3D/UI%20pictures/pointlocker_control.png">';
+            } else {
+                controls = pointerLockControls;
+                orbitControls.enabled = false;
+                pointerLockControls.lock();
+                camera.position.y = lastPortalPosition.y;
+                document.getElementById('controlToggle').innerHTML = '<img src="https://tinlinl0513.github.io/XinyiStreetView3D/UI%20pictures/orbit_control.png">';
+            }
+        }
+
+
         function onDocumentMouseDown(event) {
             event.preventDefault();
 
@@ -377,6 +396,8 @@
             return portal;
         }
 
+
+
         function teleportToPortal(position) {
             camera.position.set(position.x, position.y, position.z);
             lastPortalPosition.copy(position);
@@ -389,6 +410,7 @@
                 controls = pointerLockControls;
                 orbitControls.enabled = false;
                 pointerLockControls.lock();
+                document.getElementById('controlToggle').innerHTML = '<img src="https://tinlinl0513.github.io/XinyiStreetView3D/UI%20pictures/orbit_control.png">';
             }
         }
 
@@ -407,3 +429,4 @@
     </script>
 </body>
 </html>
+
