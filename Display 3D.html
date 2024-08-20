@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <title>three.js webgl - loaders - OBJ loader</title>
+    <title>XinyiStreet</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
     <style>
@@ -9,21 +9,67 @@
             position: absolute;
             top: 10px;
             left: 10px;
+            border-radius: 10px;
             z-index: 1;
             padding: 10px;
-            background: rgba(255, 255, 255, 0.7);
-            border: 1px solid #ccc;
+            background: rgba(255, 255, 255, 0.3);
             cursor: pointer;
+        }
+        #controlToggle img {
+            width: 40px;
+            height: 40px;
+            opacity: 0.7;
+        }
+        #fullscreenToggle {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            border-radius: 10px;
+            z-index: 1;
+            padding: 10px;
+            background: rgba(255, 255, 255, 0.3);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        #fullscreenToggle img {
+            width: 20px;
+            height: 20px;
+            opacity: 0.7;
+        }
+        .camera-position {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
         }
     </style>
 </head>
 <body>
-    <div id="controlToggle">start</div>
+    <div id="controlToggle">
+        <img src="https://tinlinl0513.github.io/XinyiStreetView3D/UI%20pictures/orbit_control.png">
+    </div>
+    <div id="fullscreenToggle">
+        <img src="https://tinlinl0513.github.io/XinyiStreetView3D/UI%20pictures/enter_fullscreen.png">
+    </div>
+    <div id="cameraPosition" class="camera-position">
+        Camera Position: <span id="cameraPosText"></span>
+    </div>
+    
     <script type="importmap">
         {
             "imports": {
                 "three": "https://tinlinl0513.github.io/XinyiStreetView3D/js%20for%20github/three.module.js",
-                "OBJLoader": "https://tinlinl0513.github.io/XinyiStreetView3D/js%20for%20github/loader/OBJLoader.js",
+                "GLTFLoader": "https://tinlinl0513.github.io/XinyiStreetView3D/js%20for%20github/loader/GLTFLoader.js",
+                "DRACOLoader": "https://tinlinl0513.github.io/XinyiStreetView3D/js%20for%20github/loader/DRACOLoader.js",
+                "KTX2Loader": "https://tinlinl0513.github.io/XinyiStreetView3D/js%20for%20github/loader/KTX2Loader.js",
+                "meshopt_decoder": "https://tinlinl0513.github.io/XinyiStreetView3D/js%20for%20github/libs/meshopt_decoder.module.js",
                 "OrbitControls": "https://tinlinl0513.github.io/XinyiStreetView3D/js%20for%20github/controls/OrbitControls.js",
                 "PointerLockControls": "https://tinlinl0513.github.io/XinyiStreetView3D/js%20for%20github/controls/PointerLockControls.js"
             }
@@ -32,7 +78,10 @@
 
     <script type="module">
         import * as THREE from 'https://tinlinl0513.github.io/XinyiStreetView3D/js%20for%20github/three.module.js';
-        import { OBJLoader } from 'https://tinlinl0513.github.io/XinyiStreetView3D/js%20for%20github/loader/OBJLoader.js';
+        import { GLTFLoader } from 'https://tinlinl0513.github.io/XinyiStreetView3D/js%20for%20github/loader/GLTFLoader.js';
+        import { DRACOLoader } from 'https://tinlinl0513.github.io/XinyiStreetView3D/js%20for%20github/loader/DRACOLoader.js';
+        import { KTX2Loader } from 'https://tinlinl0513.github.io/XinyiStreetView3D/js%20for%20github/loader/KTX2Loader.js';
+        import { MeshoptDecoder } from 'https://tinlinl0513.github.io/XinyiStreetView3D/js%20for%20github/libs/meshopt_decoder.module.js';
         import { OrbitControls } from 'https://tinlinl0513.github.io/XinyiStreetView3D/js%20for%20github/controls/OrbitControls.js';
         import { PointerLockControls } from 'https://tinlinl0513.github.io/XinyiStreetView3D/js%20for%20github/controls/PointerLockControls.js';
 
@@ -44,60 +93,65 @@
         let moveLeft = false;
         let moveRight = false;
         let prevTime = performance.now();
+        let lastPortalPosition = new THREE.Vector3();
         const velocity = new THREE.Vector3();
         const direction = new THREE.Vector3();
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+
 
         init();
         animate();
 
         function init() {
             camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
-            camera.position.y = 1.5;
-            camera.position.z = 3;
+            camera.position.set(-28, 22.75, 17.5);
+            camera.lookAt(new THREE.Vector3(0, 0, 0)); // Make the camera look at the center of the model
 
             scene = new THREE.Scene();
 
-            // Adjust Ambient Light
-            const ambientLight = new THREE.AmbientLight(0x404040, 2); // Soft white light
+            const ambientLight = new THREE.AmbientLight(0x404040, 2);
             scene.add(ambientLight);
 
-            // Adjust Point Light
             const pointLight = new THREE.PointLight(0xffffff, 3);
             pointLight.position.set(1, 1, 2);
             camera.add(pointLight);
             scene.add(camera);
 
-            // Add Directional Light
             const directionalLight = new THREE.DirectionalLight(0xffffff, 2);
             directionalLight.position.set(-1, 2, 4).normalize();
             scene.add(directionalLight);
 
-            const manager = new THREE.LoadingManager(loadModel);
-            const textureLoader = new THREE.TextureLoader(manager);
-            const texture = textureLoader.load('https://tinlinl0513.github.io/XinyiStreetView3D/materials/model1.jpg');
-            texture.colorSpace = THREE.SRGBColorSpace;
+            // Load materials and object
 
-            function loadModel() {
-                object.traverse(function(child) {
-                    if (child.isMesh) child.material.map = texture;
-                });
+            const DRACO_LOADER = new DRACOLoader();
+            DRACO_LOADER.setDecoderPath('https://tinlinl0513.github.io/XinyiStreetView3D/js%20for%20github/libs/draco/');
 
-                object.position.y = 2;
+            const KTX2_LOADER = new KTX2Loader();
+            KTX2_LOADER.setTranscoderPath('https://tinlinl0513.github.io/XinyiStreetView3D/js%20for%20github/libs/basis/');
+
+            const gltfLoader = new GLTFLoader()
+                .setDRACOLoader(DRACO_LOADER)
+                .setKTX2Loader(KTX2_LOADER)
+                .setMeshoptDecoder(MeshoptDecoder);
+
+
+            gltfLoader.load('https://tinlinl0513.github.io/XinyiStreetView3D/obj/xinyistreet2-transformed.glb', function (gltf) {
+                console.log('GLB model loaded:', gltf);
+    
+                object = gltf.scene;
+
+                object.position.y = 0;
                 scene.add(object);
-                render();
-            }
-
-            const loader = new OBJLoader(manager);
-            loader.load('https://tinlinl0513.github.io/XinyiStreetView3D/obj/model1.obj', function(obj) {
-                object = obj;
             });
+
+            
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setPixelRatio(window.devicePixelRatio);
             renderer.setSize(window.innerWidth, window.innerHeight);
             document.body.appendChild(renderer.domElement);
 
-            // First Person Controls with Pointer Lock
             pointerLockControls = new PointerLockControls(camera, document.body);
 
             const blocker = document.createElement('div');
@@ -132,10 +186,9 @@
             });
 
             orbitControls = new OrbitControls(camera, renderer.domElement);
-            orbitControls.enabled = false;
+            orbitControls.enabled = true;
 
-            controls = pointerLockControls;
-            scene.add(controls.getObject());
+            controls = orbitControls; // Set OrbitControls as the default controls
 
             const onKeyDown = function (event) {
                 switch (event.code) {
@@ -189,14 +242,38 @@
                     controls = orbitControls;
                     orbitControls.enabled = true;
                     pointerLockControls.unlock();
-                    this.innerHTML = '切換至行人模式';
+                    this.innerHTML = '<img src=" https://tinlinl0513.github.io/XinyiStreetView3D/UI%20pictures/pointlocker_control.png">';
                 } else {
                     controls = pointerLockControls;
                     orbitControls.enabled = false;
                     pointerLockControls.lock();
-                    this.innerHTML = '切換至環繞模式';
+                    camera.position.y = lastPortalPosition.y;
+                    this.innerHTML = '<img src="https://tinlinl0513.github.io/XinyiStreetView3D/UI%20pictures/orbit_control.png">';
                 }
             });
+
+            document.getElementById('fullscreenToggle').addEventListener('click', function () {
+                if (!document.fullscreenElement) {
+                    document.documentElement.requestFullscreen();
+                    this.innerHTML = '<img src="https://tinlinl0513.github.io/XinyiStreetView3D/UI%20pictures/exit_fullscreen.png">';
+                } else {
+                    if (document.exitFullscreen) {
+                        document.exitFullscreen();
+                        this.innerHTML = '<img src="https://tinlinl0513.github.io/XinyiStreetView3D/UI%20pictures/enter_fullscreen.png">';
+                    }
+                }
+            });
+
+            document.addEventListener('fullscreenchange', function () {
+                const fullscreenToggle = document.getElementById('fullscreenToggle');
+                if (!document.fullscreenElement) {
+                    fullscreenToggle.innerHTML = '<img src="https://tinlinl0513.github.io/XinyiStreetView3D/UI%20pictures/enter_fullscreen.png">';
+                } else {
+                    fullscreenToggle.innerHTML = '<img src="https://tinlinl0513.github.io/XinyiStreetView3D/UI%20pictures/exit_fullscreen.png">';
+                }
+            });
+
+            document.addEventListener('mousedown', onDocumentMouseDown, false);
         }
 
         function onWindowResize() {
@@ -209,31 +286,124 @@
             requestAnimationFrame(animate);
 
             const time = performance.now();
-            const delta = (time - prevTime) / 1000;
 
-            velocity.x = velocity.x * 5 * delta;
-            velocity.z = velocity.z * 5 * delta;
+            if (pointerLockControls.isLocked) {
+                const delta = (time - prevTime) / 1000;
 
-            direction.z = Number(moveForward) - Number(moveBackward);
-            direction.x = Number(moveLeft) - Number(moveRight);
-            direction.normalize(); // this ensures consistent movements in all directions
+                velocity.x = velocity.x * 10.0 * delta;
+                velocity.z = velocity.z * 10.0 * delta;
 
-            if (moveForward || moveBackward) velocity.z += -direction.z * 200 * delta;
-            if (moveLeft || moveRight) velocity.x += -direction.x * 200 * delta;
+                direction.z = Number(moveForward) - Number(moveBackward);
+                direction.x = Number(moveLeft) - Number(moveRight);
+                direction.normalize();
 
-            if (controls === pointerLockControls) {
-                camera.position.y = 1.5;
-                controls.moveRight(velocity.x * delta);
-                controls.moveForward(-velocity.z * delta);
-            } else {
-                orbitControls.update();
+                if (moveForward || moveBackward) velocity.z += -direction.z * 400.0 * delta;
+                if (moveLeft || moveRight) velocity.x += -direction.x * 400.0 * delta;
+
+                pointerLockControls.moveRight(velocity.x * delta);
+                pointerLockControls.moveForward(-velocity.z * delta);
+            }
+            
+            const hoverIntersects = raycaster.intersectObjects(scene.children, true);
+
+            scene.traverse((child) => {
+                if (child.userData.isPortal && child.material) {
+                    child.material.color.set(0x0000ff); // Default blue color
+                }
+            });
+
+            if (hoverIntersects.length > 0) {
+                const hoverObject = hoverIntersects[0].object;
+                if (hoverObject.userData.isPortal) {
+                    hoverObject.material.color.set(0xff0000); // Change color on hover
+                }
             }
 
-            renderer.render(scene, camera);
+
             prevTime = time;
+
+            // Update camera position display
+            const cameraPosText = document.getElementById('cameraPosText');
+            cameraPosText.innerHTML = `X: ${camera.position.x.toFixed(2)}, Y: ${camera.position.y.toFixed(2)}, Z: ${camera.position.z.toFixed(2)}`;
+
+            renderer.render(scene, camera);
         }
 
-        render();
+        function onDocumentMouseDown(event) {
+            event.preventDefault();
+
+            mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+            raycaster.setFromCamera(mouse, camera);
+
+            const intersects = raycaster.intersectObjects(scene.children, true);
+
+            if (intersects.length > 0) {
+                const intersectedObject = intersects[0].object;
+
+                if (intersectedObject.userData.isPortal) {
+                    const portalPosition = intersectedObject.position;
+                    teleportToPortal(portalPosition);
+                }
+            }
+        }
+
+
+        function createPortal(x, y, z, rotation = { x: 0, y: 0, z: 0 }) {
+            const geometry = new THREE.SphereGeometry(0.3, 32, 32); // Original portal shape
+            const material = new THREE.MeshBasicMaterial({
+                color: 0x0000ff, // Blue color
+                transparent: true,
+                opacity: 0.7, // 70% transparency
+                depthWrite: false // Prevents the sphere from being hidden by other objects
+            });
+            const portal = new THREE.Mesh(geometry, material);
+            portal.position.set(x, y, z);
+            portal.renderOrder = 9999;
+            portal.userData.isPortal = true; // Mark the object as a portal
+            scene.add(portal);
+
+            // Add invisible larger sphere to increase clickable area
+            const clickAreaGeometry = new THREE.SphereGeometry(0.6, 32, 32); // Larger clickable area
+            const clickAreaMaterial = new THREE.MeshBasicMaterial({
+                visible: false // Invisible material
+            });
+            const clickArea = new THREE.Mesh(clickAreaGeometry, clickAreaMaterial);
+            clickArea.position.copy(portal.position);
+            clickArea.userData.isPortal = true; // Mark it as a portal for detection
+            scene.add(clickArea);
+
+            return portal;
+        }
+
+        function teleportToPortal(position) {
+            camera.position.set(position.x, position.y, position.z);
+            lastPortalPosition.copy(position);
+            camera.rotation.set(0, 0, 0);
+
+            console.log(`Teleported to portal at: (${position.x}, ${position.y}, ${position.z})`);
+
+            // Switch to PointerLockControls if not already active
+            if (controls !== pointerLockControls) {
+                controls = pointerLockControls;
+                orbitControls.enabled = false;
+                pointerLockControls.lock();
+            }
+        }
+
+
+        createPortal(0,-0.5,3);
+        createPortal(-8.73,-0.5,2.86);
+        createPortal(-8.8,-0.5,-11.43);
+        createPortal(-14.42,-0.5,-27.19);
+        createPortal(-0.12,-0.5,-8.57);
+        createPortal(0.73,-0.5,-16.50);
+        createPortal(0.29,-0.5,-27.18);
+        createPortal(10.16,-0.5,2.05);
+        createPortal(10.00,-0.5,-16.05);
+        createPortal(0.15,3,-5.06);
+
     </script>
 </body>
 </html>
