@@ -3,11 +3,11 @@
 <head>
 <title>XinyiStreet</title>
 <meta charset="utf-8">
-<meta name="viewport" content="width=840px, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
     <style>
         #controlToggle {
-            position: relative;
-            top: 10px;
+            position: absolute;
+            bottom: -800px;
             left: 10px;
             border-radius: 10px;
             z-index: 1;
@@ -15,14 +15,31 @@
             background: rgba(255, 255, 255, 0.3);
             cursor: pointer;
         }
+
+        #instructionPlane {
+            position: absolute;
+            bottom: -800px; /* Adjust this to control visibility */
+            right: 35%;
+            transform: translateX(0%);
+            border-radius: 10px;
+            z-index: 1;
+            padding: 5px;
+            width: 400px; /* Adjust width as needed */
+            background: rgba(255, 255, 255, 0.3);
+            color: black;
+            text-align: center;
+            font-size: 12px;
+        }
+
         #controlToggle img {
             width: 40px;
             height: 40px;
             opacity: 0.7;
         }
+
         #fullscreenToggle {
-            position: relative;
-            bottom: 10px;
+            position: absolute;
+            bottom: -800px;
             right: 10px;
             border-radius: 10px;
             z-index: 1;
@@ -31,6 +48,7 @@
             cursor: pointer;
             display: flex;
             align-items: center;
+            font-family: 'Times New Roman', Times, serif;
             justify-content: center;
         }
         #fullscreenToggle img {
@@ -38,17 +56,7 @@
             height: 20px;
             opacity: 0.7;
         }
-        .camera-position {
-            position: relative;
-            top: 10px;
-            right: 10px;
-            background: rgba(0, 0, 0, 0.7);
-            color: white;
-            padding: 10px;
-            border-radius: 5px;
-            font-family: Arial, sans-serif;
-            font-size: 14px;
-        }
+
     </style>
 </head>
 <body>
@@ -58,9 +66,13 @@
     <div id="fullscreenToggle">
         <img src="https://tinlinl0513.github.io/XinyiStreetView3D/UI%20pictures/enter_fullscreen.png">
     </div>
-    <div id="cameraPosition" class="camera-position">
-        Camera Position: <span id="cameraPosText"></span>
+    <div id="instructionPlane">
+        <p>WASD: 步行模式中，可前後左右移動
+        <br>滑鼠左鍵: 環繞模式中，可環繞、+shift拖曳、與傳送點互動
+        <br>滑鼠中鍵: 縮放
+        <br>空白鍵: 切換步行與環繞模式</p>
     </div>
+
     
     <script type="importmap">
         {
@@ -94,10 +106,19 @@
         let moveRight = false;
         let prevTime = performance.now();
         let lastPortalPosition = new THREE.Vector3();
+        let touchStartX = 0;
+        let touchStartY = 0;
+        let touchMoveX = 0;
+        let touchMoveY = 0;
+        let pinchDistanceStart = 0;
+        let pinchDistanceEnd = 0;
+        let isPinching = false;
+        let lastTap = 0;
         const velocity = new THREE.Vector3();
         const direction = new THREE.Vector3();
         const raycaster = new THREE.Raycaster();
         const mouse = new THREE.Vector2();
+        const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 
 
         init();
@@ -158,7 +179,7 @@
             blocker.style.position = 'relative';
             blocker.style.width = '20%';
             blocker.style.height = '20%';
-            blocker.style.backgroundColor = 'rgba(0,0,0,0.3)';
+            blocker.style.backgroundColor = 'rgba(0,0,0,0)';
             blocker.style.display = 'none';
             document.body.appendChild(blocker);
 
@@ -168,7 +189,7 @@
             instructions.style.display = 'flex';
             instructions.style.alignItems = 'center';
             instructions.style.justifyContent = 'center';
-            instructions.innerHTML = '<span style="font-size:24px;color:white;">Click to start</span>';
+            instructions.innerHTML = '<span style="font-size:24px;color:white;"></span>';
             blocker.appendChild(instructions);
 
             instructions.addEventListener('click', function () {
@@ -235,11 +256,43 @@
                 }
             };
 
+
             document.addEventListener('keydown', onKeyDown);
 
             document.addEventListener('keyup', onKeyUp);
 
             window.addEventListener('resize', onWindowResize);
+
+            if (isTouchDevice) {
+                document.addEventListener('touchstart', onTouchStart, false);
+                document.addEventListener('touchmove', onTouchMove, false);
+                document.addEventListener('touchend', onTouchEnd, false);
+                document.addEventListener('touchend', function(event) {
+                    const currentTime = new Date().getTime();
+                    const tapLength = currentTime - lastTap;
+
+                    if (tapLength < 500 && tapLength > 0) {
+                        const touch = event.changedTouches[0];
+                        const x = (touch.pageX / window.innerWidth) * 2 - 1;
+                        const y = -(touch.pageY / window.innerHeight) * 2 + 1;
+
+                        // Perform raycasting and teleport to the touch location
+                        mouse.x = x;
+                        mouse.y = y;
+                        raycaster.setFromCamera(mouse, camera);
+                        const intersects = raycaster.intersectObjects(scene.children, true);
+
+                        if (intersects.length > 0) {
+                            const intersectedObject = intersects[0].object;
+                            if (intersectedObject.userData.isPortal) {
+                                teleportToPortal(intersectedObject.position);
+                            }
+                        }
+                    }
+                    lastTap = currentTime;
+                });
+            }
+
 
             document.getElementById('controlToggle').addEventListener('click', function () {
                 if (controls === pointerLockControls) {
@@ -326,10 +379,6 @@
 
             prevTime = time;
 
-            // Update camera position display
-            const cameraPosText = document.getElementById('cameraPosText');
-            cameraPosText.innerHTML = `X: ${camera.position.x.toFixed(2)}, Y: ${camera.position.y.toFixed(2)}, Z: ${camera.position.z.toFixed(2)}`;
-
             renderer.render(scene, camera);
         }
 
@@ -396,7 +445,53 @@
 
             return portal;
         }
+        function onTouchStart(event) {
+            if (event.touches.length === 1) {
+                // Single touch: start tracking movement for rotation
+                touchStartX = event.touches[0].pageX;
+                touchStartY = event.touches[0].pageY;
+            } else if (event.touches.length === 2) {
+                // Pinch gesture: calculate initial distance between two touches
+                pinchDistanceStart = Math.hypot(
+                    event.touches[0].pageX - event.touches[1].pageX,
+                    event.touches[0].pageY - event.touches[1].pageY
+                );
+                isPinching = true;
+            }
+        }
 
+        function onTouchMove(event) {
+            if (event.touches.length === 1 && !isPinching) {
+                // Single touch move: rotate camera
+                touchMoveX = event.touches[0].pageX;
+                touchMoveY = event.touches[0].pageY;
+
+                const deltaX = touchMoveX - touchStartX;
+                const deltaY = touchMoveY - touchStartY;
+
+                orbitControls.rotateLeft(deltaX * 0.002); // Adjust sensitivity
+                orbitControls.rotateUp(deltaY * 0.002);
+
+                touchStartX = touchMoveX;
+                touchStartY = touchMoveY;
+            } else if (event.touches.length === 2 && isPinching) {
+                // Pinch move: zoom camera
+                pinchDistanceEnd = Math.hypot(
+                    event.touches[0].pageX - event.touches[1].pageX,
+                    event.touches[0].pageY - event.touches[1].pageY
+                );
+                const pinchDelta = pinchDistanceStart - pinchDistanceEnd;
+
+                camera.fov += pinchDelta * 0.05; // Adjust sensitivity
+                camera.updateProjectionMatrix();
+
+                pinchDistanceStart = pinchDistanceEnd;
+            }
+        }
+
+        function onTouchEnd(event) {
+            isPinching = false;
+        }
 
 
         function teleportToPortal(position) {
@@ -430,5 +525,6 @@
     </script>
 </body>
 </html>
+
 
 
